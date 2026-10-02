@@ -4,6 +4,7 @@
 #include "port/ShipInit.hpp"
 #include "port/data/SaveConversion.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -14,15 +15,26 @@ extern "C" struct SaveBuffer gSaveBuffer;
 // comes from SDL_AndroidGetExternalStoragePath(), which calls into Java — and a
 // global constructor runs at dlopen, before SDL's JNI is set up, so asking then
 // aborts the process with "CallStaticObjectMethod received NULL jclass".
+//
+// Fork patch: GHOSTSHIP_SAVES_DIR, when set (the Android launcher sets it to a
+// folder under Android/media so Syncthing can reach it), replaces the default
+// <app dir>/saves location.
 static const fs::path& SavesPath() {
-    static const fs::path path(Ship::Context::GetPathRelativeToAppDirectory("saves", "sm64"));
+    static const fs::path path = []() -> fs::path {
+        const char* custom = std::getenv("GHOSTSHIP_SAVES_DIR");
+        if (custom != nullptr && *custom != '\0') {
+            return fs::path(custom);
+        }
+        return fs::path(Ship::Context::GetPathRelativeToAppDirectory("saves", "sm64"));
+    }();
     return path;
 }
 
 static void Init() {
     // Create saves directory if it doesn't exist
     if (!fs::exists(SavesPath())) {
-        fs::create_directory(SavesPath());
+        std::error_code ec;
+        fs::create_directories(SavesPath(), ec);
     }
 }
 

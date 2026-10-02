@@ -48,6 +48,9 @@ class MainActivity : SDLActivity() {
     private external fun isMenuOpen(): Boolean
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super: SDLActivity loads the game library there, and the
+        // engine reads the saves location when it first needs it.
+        SaveStore.configureNativeSaves(this)
         super.onCreate(savedInstanceState)
         goFullscreen()
         addModsButton()

@@ -37,8 +37,42 @@ object SaveStore {
                 ?: file.name
     }
 
+    /** Name of the environment variable the native side reads (src/port/data/Saves.cpp). */
+    private const val SAVES_ENV = "GHOSTSHIP_SAVES_DIR"
+
+    /**
+     * Fork patch: saves live in Android/media/<package>/saves instead of
+     * Android/data/<package>/files/saves. Android/media can be reached by
+     * Syncthing (with "All files access"); Android/data cannot on Android 11+.
+     */
+    private fun syncableSavesDir(context: Context): File? =
+        context.externalMediaDirs.firstOrNull { it != null }?.let { File(it, "saves") }
+
+    private fun legacySavesDir(context: Context) = File(GameAssets.gameDir(context), "saves")
+
     fun savesDir(context: Context): File =
-        File(GameAssets.gameDir(context), "saves").also { it.mkdirs() }
+        (syncableSavesDir(context) ?: legacySavesDir(context)).also { it.mkdirs() }
+
+    /**
+     * Points the native engine at [savesDir] and moves saves over from the old
+     * location the first time. Must run before the game library loads, i.e.
+     * before SDLActivity.onCreate.
+     */
+    fun configureNativeSaves(context: Context) {
+        val target = syncableSavesDir(context) ?: return
+        target.mkdirs()
+
+        try {
+            val legacy = legacySavesDir(context)
+            val hasNew = target.listFiles()?.any { it.isFile } == true
+            if (!hasNew && legacy.isDirectory) {
+                legacy.listFiles()?.filter { it.isFile }?.forEach { it.copyTo(File(target, it.name), overwrite = false) }
+            }
+            android.system.Os.setenv(SAVES_ENV, target.absolutePath, true)
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not redirect saves to ${target.path}", error)
+        }
+    }
 
     fun list(context: Context): List<Save> =
         (savesDir(context).listFiles() ?: emptyArray())

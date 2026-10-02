@@ -124,7 +124,7 @@ android {
     ndkVersion = "30.0.15729638"
 
     defaultConfig {
-        applicationId = "dev.net64.ghostship"
+        applicationId = "dev.net64.ghostship.sync"
         minSdk = 24
         targetSdk = 36
         versionCode = 2
